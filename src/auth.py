@@ -1,13 +1,13 @@
 from flask import Blueprint,request,jsonify
 from werkzeug.security import check_password_hash,generate_password_hash
-from src.constants.http_status_code import HTTP_400_BAD_REQUEST,HTTP_409_CONFLICT
+from src.constants.http_status_code import HTTP_400_BAD_REQUEST,HTTP_409_CONFLICT,HTTP_201_CREATED
 import validators
 from src.database import User,db
 
 auth = Blueprint("auth",__name__,url_prefix="/api/v1/auth")
 
 @auth.post('/register')
-def register(request):
+def register():
     username = request.json['username']
     email = request.json['email']
     password = request.json['password']
@@ -17,19 +17,30 @@ def register(request):
     if len(username) < 3:
         return jsonify({'error':"username is too short"}),HTTP_400_BAD_REQUEST
     if not username.isalnum() or " " in username:
-        return jsonify({'error':"username 必須是一個 alphanumberic also not space"}),HTTP_400_BAD_REQUEST
+        return jsonify({'error':"username must be alphanumberic also not space"}),HTTP_400_BAD_REQUEST
 
     if not validators.email(email):
-        return jsonify({'error':"email沒有經過驗證"}),HTTP_400_BAD_REQUEST
+        return jsonify({'error':"email doesn't vertify"}),HTTP_400_BAD_REQUEST
 
-    if User.objects.filter_by(email=email).first is not None:
-        return jsonify({'error':"email被使用了"}),HTTP_409_CONFLICT
-    if User.objects.filter_by(username=username).first is not None:
-        return jsonify({'error':"username被使用了"}),HTTP_409_CONFLICT
+    if User.query.filter_by(email=email).first() is not None:
+        return jsonify({'error':"email is used"}),HTTP_409_CONFLICT
+    if User.query.filter_by(username=username).first() is not None:
+        return jsonify({'error':"username is used"}),HTTP_409_CONFLICT
 
 
     pwd_hash=generate_password_hash(password) 
     user=User(username=username, password=pwd_hash, email=email)
+
+    db.session.add(user)
+    db.session.commit()
+
+    return jsonify({
+        'message': "User created",
+        'user': {
+            'username': username, "email": email
+        }
+
+    }), HTTP_201_CREATED
 
     return "User Created"
 
@@ -37,3 +48,4 @@ def register(request):
 @auth.get("/me")
 def me():
     return {"User":"me"}
+
