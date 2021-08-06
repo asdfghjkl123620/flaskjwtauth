@@ -1,13 +1,15 @@
 from flask import Blueprint,request,jsonify
 from werkzeug.security import check_password_hash,generate_password_hash
-from src.constants.http_status_code import HTTP_400_BAD_REQUEST,HTTP_409_CONFLICT,HTTP_201_CREATED,HTTP_401_UNAUTHORIZED
+from src.constants.http_status_code import HTTP_400_BAD_REQUEST,HTTP_409_CONFLICT,HTTP_200_OK,HTTP_201_CREATED,HTTP_401_UNAUTHORIZED
 import validators
-from flask_jwt_extended import create_access_token,create_refresh_token
+from flask_jwt_extended import jwt_required, create_access_token,create_refresh_token,get_jwt_identity
 
 from src.database import User,db
 
 auth = Blueprint("auth",__name__,url_prefix="/api/v1/auth")
 
+
+#做登入的驗證 並且在登入之後給一個token
 @auth.post('/login')
 def login():
     email = request.json.get('email','')
@@ -31,7 +33,7 @@ def login():
                  }
 
 
-            })
+            }), HTTP_200_OK
     return jsonify({'error':'Wrong credentials'}),HTTP_401_UNAUTHORIZED
 
 @auth.post('/register')
@@ -74,6 +76,22 @@ def register():
 
 
 @auth.get("/me")
+@jwt_required()
 def me():
-    return {"User":"me"}
+    user_id = get_jwt_identity()
+    user = User.query.filter_by(id=user_id).first()
+    return jsonify({
+        "username":user.username, 
+        "email": user.email
+    }),HTTP_200_OK
 
+@auth.post('/token/refresh')
+@jwt_required(refresh=True)
+def refresh_users_token():
+    identity = get_jwt_identity()
+    access = create_access_token(identity=identity)
+
+
+    return jsonify({
+        'access': access
+    }), HTTP_200_OK
